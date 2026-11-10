@@ -4,7 +4,7 @@
  * All data lives in the Google Sheet this script is attached to:
  *   Users     one row per account (password is stored as a salted hash, never as text)
  *   Expenses  one row per expense: ID, Username, Date, Note, Category, Amount, Card, Bank
- *   Lists     each user's dropdown options (categories, banks, cards)
+ *   Lists     each user's categories, banks and cards (card name, its bank, and bill date for credit cards)
  *   Summary   month-wise totals by category, bank and card (live formulas)
  *
  * SET-UP (see README.md):  1) change SIGNUP_CODE   2) run setup() once
@@ -47,7 +47,7 @@ function route_(r) {
     case 'bulkAdd':   return withLock_(() => add_(user, r.entries));
     case 'update':    return withLock_(() => update_(user, r.entry));
     case 'remove':    return withLock_(() => remove_(user, r.id));
-    case 'saveLists': return withLock_(() => saveLists_(user, r.lists));
+    case 'saveLists': return withLock_(() => saveLists_(user, r.lists, r.cards));
     default: throw fail_('Unknown request.');
   }
 }
@@ -163,14 +163,35 @@ function load_(u) {
     });
   }
   const ls = sheet_('Lists');
-  const lists = { categories: [], banks: [], cards: [] };
+  const lists = { categories: [], banks: [] };
+  let cards = [];
+  const legacyCards = [], legacyBilling = [];
   let any = false;
   if (ls.getLastRow() >= 2) {
     ls.getRange(2, 1, ls.getLastRow() - 1, 3).getValues().forEach(function (r) {
-      if (String(r[0]) === u.key && lists[r[1]]) { lists[r[1]].push(String(r[2])); any = true; }
+      if (String(r[0]) !== u.key) return;
+      const type = String(r[1]), val = String(r[2]);
+      if (type === 'card') {                       // name|bank|billDay
+        const p = val.split('|');
+        const day = parseInt(p[2], 10);
+        cards.push({ name: p[0], bank: p[1] || '', day: day >= 1 && day <= 31 ? day : null });
+        any = true;
+      } else if (type === 'categories' || type === 'banks') { lists[type].push(val); any = true; }
+      else if (type === 'cards') legacyCards.push(val);                 // older versions
+      else if (type === 'billing') {                                    // older versions: bank|card|day
+        const p = val.split('|'), day = parseInt(p[2], 10);
+        if (p.length === 3 && day >= 1 && day <= 31) legacyBilling.push({ name: p[1], bank: p[0], day: day });
+      }
     });
   }
-  return { ok: true, name: u.name, entries: entries, lists: any ? lists : null };
+  if (!cards.length && (legacyCards.length || legacyBilling.length)) {   // convert older data on the fly
+    cards = legacyBilling.slice();
+    legacyCards.forEach(function (n) {
+      if (!cards.some(function (c) { return c.name.toLowerCase() === n.toLowerCase(); })) cards.push({ name: n, bank: '', day: null });
+    });
+    any = true;
+  }
+  return { ok: true, name: u.name, entries: entries, lists: any ? lists : null, cards: cards };
 }
 
 function add_(u, list) {
@@ -213,18 +234,45 @@ function findEntryRow_(u, id) {
   throw fail_('That entry was not found. It may already have been deleted.');
 }
 
-function saveLists_(u, lists) {
+/**
+ * Saves a user's settings.
+ *   lists = { categories: [...], banks: [...] }
+ *   cards = [{ name, bank, day }]   day = day of month the bill is generated (1-31), or empty for non-credit cards
+ * Leaving either argument undefined keeps what is already saved for that part.
+ */
+function saveLists_(u, lists, cards) {
   const out = [];
-  ['categories', 'banks', 'cards'].forEach(function (type) {
-    const arr = lists && Array.isArray(lists[type]) ? lists[type] : [];
-    arr.slice(0, 60).forEach(function (v) {
-      const s = String(v == null ? '' : v).trim().slice(0, 40);
-      if (s) out.push([u.key, type, s]);
+  const clip = function (v, n) { return String(v == null ? '' : v).replace(/\|/g, '').trim().slice(0, n); };
+  if (lists !== undefined) {
+    ['categories', 'banks'].forEach(function (type) {
+      const arr = lists && Array.isArray(lists[type]) ? lists[type] : [];
+      arr.slice(0, 60).forEach(function (v) {
+        const s = clip(v, 40);
+        if (s) out.push([u.key, type, s]);
+      });
     });
-  });
+  }
+  if (cards !== undefined) {
+    const seen = {};
+    (Array.isArray(cards) ? cards : []).slice(0, 60).forEach(function (c) {
+      const name = clip(c && c.name, 40), bank = clip(c && c.bank, 40);
+      const day = parseInt(c && c.day, 10);
+      if (name && !seen[name.toLowerCase()]) {
+        seen[name.toLowerCase()] = true;
+        out.push([u.key, 'card', name + '|' + bank + '|' + (day >= 1 && day <= 31 ? day : '')]);
+      }
+    });
+  }
+
   const sh = sheet_('Lists');
   const last = sh.getLastRow();
-  const keep = last >= 2 ? sh.getRange(2, 1, last - 1, 3).getValues().filter(function (r) { return String(r[0]) !== u.key; }) : [];
+  const old = last >= 2 ? sh.getRange(2, 1, last - 1, 3).getValues() : [];
+  const keep = old.filter(function (r) {
+    if (String(r[0]) !== u.key) return true;                                   // other users' rows
+    const t = String(r[1]);
+    if (t === 'categories' || t === 'banks') return lists === undefined;
+    return cards === undefined;                                                // card, and older cards/billing rows
+  });
   const all = keep.concat(out);
   if (last >= 2) sh.getRange(2, 1, last - 1, 3).clearContent();
   if (all.length) sh.getRange(2, 1, all.length, 3).setValues(all);

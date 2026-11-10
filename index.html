@@ -59,11 +59,13 @@
   <header class="topbar">
     <div class="brand"><span class="mark small">₹</span><span>Expense Book</span></div>
     <nav class="tabs" role="tablist" aria-label="Views">
-      <button type="button" role="tab" data-view="entries" aria-selected="true">Entries</button>
+      <button type="button" role="tab" data-view="dashboard" aria-selected="true">Dashboard</button>
+      <button type="button" role="tab" data-view="entries" aria-selected="false">Entries</button>
+      <button type="button" role="tab" data-view="cards" aria-selected="false">Card bills</button>
       <button type="button" role="tab" data-view="reports" aria-selected="false">Reports</button>
+      <button type="button" role="tab" data-view="settings" aria-selected="false">Settings</button>
     </nav>
     <div class="tools">
-      <button type="button" class="btn ghost small" id="btn-lists">Lists</button>
       <button type="button" class="btn ghost small" id="btn-export">Export CSV</button>
       <label class="btn ghost small" for="file-import">Import CSV</label>
       <input type="file" id="file-import" accept=".csv,text/csv" hidden>
@@ -72,8 +74,35 @@
     </div>
   </header>
 
+  <!-- ---------- Dashboard ---------- -->
+  <main id="view-dashboard" class="page">
+    <div class="monthbar">
+      <button type="button" class="icon-btn" id="d-prev" aria-label="Previous month">‹</button>
+      <h2 id="d-label" aria-live="polite"></h2>
+      <button type="button" class="icon-btn" id="d-next" aria-label="Next month">›</button>
+      <button type="button" class="btn ghost small" id="d-today">This month</button>
+      <button type="button" class="btn primary small push" id="d-add">Add expense</button>
+    </div>
+    <div id="dash-body"></div>
+  </main>
+
+  <!-- ---------- Settings ---------- -->
+  <main id="view-settings" class="page" hidden>
+    <div class="monthbar"><h2>Settings</h2></div>
+    <div id="settings-body"></div>
+  </main>
+
+  <!-- ---------- Card bills ---------- -->
+  <main id="view-cards" class="page" hidden>
+    <div class="monthbar">
+      <h2>Credit card bills</h2>
+      <select id="cb-select" aria-label="Choose card"></select>
+    </div>
+    <div id="cb-body"></div>
+  </main>
+
   <!-- ---------- Entries ---------- -->
-  <main id="view-entries" class="page">
+  <main id="view-entries" class="page" hidden>
     <div class="monthbar">
       <button type="button" class="icon-btn" id="m-prev" aria-label="Previous month">‹</button>
       <h2 id="m-label" aria-live="polite"></h2>
@@ -146,16 +175,6 @@
     <div id="matrices"></div>
   </main>
 </div>
-
-<!-- ---------- Manage lists ---------- -->
-<dialog id="dlg-lists">
-  <div class="dlg-head">
-    <h2>Categories, banks and cards</h2>
-    <button type="button" class="icon-btn" id="dlg-close" aria-label="Close">×</button>
-  </div>
-  <p class="hint">These fill the dropdowns on the entry form. Removing an item does not change past entries.</p>
-  <div id="lists-body"></div>
-</dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
