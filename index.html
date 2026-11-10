@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Expense Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230E5C57'/%3E%3Ctext x='50' y='72' font-size='64' text-anchor='middle' fill='%23fff' font-family='Arial'%3E%E2%82%B9%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== SIGN IN ===================== -->
+<main id="auth" class="auth">
+  <aside class="auth-side" aria-hidden="true">
+    <div class="auth-side-inner">
+      <span class="mark">₹</span>
+      <p class="auth-tag">Every rupee, month by month.</p>
+    </div>
+  </aside>
+  <section class="auth-main">
+    <div class="auth-card">
+      <h1>Expense Book</h1>
+      <p class="auth-sub" id="auth-sub">Sign in to see your expenses.</p>
+
+      <div class="seg" role="tablist" aria-label="Sign in or create account">
+        <button type="button" role="tab" id="tab-login" aria-selected="true">Sign in</button>
+        <button type="button" role="tab" id="tab-create" aria-selected="false">Create account</button>
+      </div>
+
+      <form id="auth-form" novalidate>
+        <label>Username
+          <input id="a-user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label>Password
+          <input id="a-pass" type="password" autocomplete="current-password" required>
+        </label>
+        <label id="a-pass2-wrap" hidden>Confirm password
+          <input id="a-pass2" type="password" autocomplete="new-password">
+        </label>
+        <label id="a-code-wrap" hidden>Sign-up code
+          <input id="a-code" type="password" autocomplete="off" spellcheck="false">
+          <span class="field-hint">Ask the owner of the Google Sheet for this code.</span>
+        </label>
+        <label class="check"><input type="checkbox" id="a-show"> Show password</label>
+        <label class="check"><input type="checkbox" id="a-keep" checked> Keep me signed in on this device</label>
+        <p id="auth-msg" class="auth-msg" role="alert"></p>
+        <button class="btn primary block" id="auth-submit" type="submit">Sign in</button>
+      </form>
+      <p class="auth-foot">Your expenses are saved in your Google Sheet, not in this browser.</p>
+    </div>
+  </section>
+</main>
+
+<!-- ===================== APP ===================== -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand"><span class="mark small">₹</span><span>Expense Book</span></div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button type="button" role="tab" data-view="entries" aria-selected="true">Entries</button>
+      <button type="button" role="tab" data-view="reports" aria-selected="false">Reports</button>
+    </nav>
+    <div class="tools">
+      <button type="button" class="btn ghost small" id="btn-lists">Lists</button>
+      <button type="button" class="btn ghost small" id="btn-export">Export CSV</button>
+      <label class="btn ghost small" for="file-import">Import CSV</label>
+      <input type="file" id="file-import" accept=".csv,text/csv" hidden>
+      <span class="who" id="who"></span>
+      <button type="button" class="btn ghost small" id="btn-logout">Sign out</button>
+    </div>
+  </header>
+
+  <!-- ---------- Entries ---------- -->
+  <main id="view-entries" class="page">
+    <div class="monthbar">
+      <button type="button" class="icon-btn" id="m-prev" aria-label="Previous month">‹</button>
+      <h2 id="m-label" aria-live="polite"></h2>
+      <button type="button" class="icon-btn" id="m-next" aria-label="Next month">›</button>
+      <button type="button" class="btn ghost small" id="m-today">This month</button>
+    </div>
+
+    <div class="strip" id="strip"></div>
+
+    <div class="cols">
+      <div class="main-col">
+        <form id="entry-form" class="entry-form" autocomplete="off">
+          <label>Date
+            <input type="date" id="f-date" required>
+          </label>
+          <label class="span2">Note
+            <input type="text" id="f-note" maxlength="120" placeholder="e.g. Lunch at office canteen">
+          </label>
+          <label>Category
+            <select id="f-cat" required></select>
+          </label>
+          <label>Amount (₹)
+            <input type="number" id="f-amt" min="0" step="0.01" inputmode="decimal" required>
+          </label>
+          <label>Card
+            <select id="f-card"></select>
+          </label>
+          <label>Bank
+            <select id="f-bank"></select>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="f-submit">Add expense</button>
+            <button type="button" class="btn ghost" id="f-cancel" hidden>Cancel edit</button>
+          </div>
+        </form>
+
+        <div class="tablebar">
+          <input type="search" id="search" placeholder="Search note, category, card or bank" aria-label="Search this month">
+        </div>
+        <div class="table-wrap">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>Date</th><th>Note</th><th>Category</th><th>Card</th><th>Bank</th>
+                <th class="num">Amount</th><th><span class="sr">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+            <tfoot id="tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+      <aside class="side-col" id="breakdown" aria-label="Month breakdown"></aside>
+    </div>
+  </main>
+
+  <!-- ---------- Reports ---------- -->
+  <main id="view-reports" class="page" hidden>
+    <div class="monthbar">
+      <button type="button" class="icon-btn" id="y-prev" aria-label="Previous year">‹</button>
+      <h2 id="y-label" aria-live="polite"></h2>
+      <button type="button" class="icon-btn" id="y-next" aria-label="Next year">›</button>
+      <button type="button" class="btn ghost small" id="y-today">This year</button>
+    </div>
+    <section class="panel">
+      <h3>Total spent per month</h3>
+      <p class="hint">Select a month to open it in Entries.</p>
+      <div class="bars" id="bars"></div>
+    </section>
+    <div id="matrices"></div>
+  </main>
+</div>
+
+<!-- ---------- Manage lists ---------- -->
+<dialog id="dlg-lists">
+  <div class="dlg-head">
+    <h2>Categories, banks and cards</h2>
+    <button type="button" class="icon-btn" id="dlg-close" aria-label="Close">×</button>
+  </div>
+  <p class="hint">These fill the dropdowns on the entry form. Removing an item does not change past entries.</p>
+  <div id="lists-body"></div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

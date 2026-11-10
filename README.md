@@ -1,1 +1,48 @@
-# expenses
+# Expense Book (saves to Google Sheets)
+
+Plain HTML, CSS and JavaScript on GitHub Pages. All data is saved in **your Google Sheet**.
+Nothing is stored in the browser except the sign-in token.
+
+Files
+- `index.html`, `style.css`, `app.js`, `config.js`  the website (upload these to GitHub)
+- `Code.gs`  the Google Apps Script that reads and writes your Sheet (paste this into Google, not GitHub)
+
+## Part 1: Google Sheet and script (about 5 minutes)
+
+1. Create a new blank Google Sheet. In **File > Settings**, set the time zone to **(GMT+05:30) India Standard Time**.
+2. Open **Extensions > Apps Script**. Delete the sample code and paste all of `Code.gs`.
+3. At the top, change `const SIGNUP_CODE = 'change-me';` to your own secret code, for example `'family2026'`.
+   Anyone creating an account must type this code. Sign-up is blocked until you change it.
+4. Press **Save**. In the function menu choose **setup** and press **Run**. Approve the permissions.
+   (Google shows "unverified app" because it is your own script: Advanced > Go to project.)
+   This creates the sheets: Users, Expenses, Lists, Summary.
+5. Press **Deploy > New deployment**. Click the gear and choose **Web app**.
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+   Press **Deploy** and copy the **Web app URL** (ends with `/exec`).
+
+## Part 2: Website on GitHub
+
+1. Open `config.js` and paste the URL between the quotes: `API_URL: 'https://script.google.com/macros/s/.../exec'`
+2. Create a GitHub repository and upload `index.html`, `style.css`, `app.js` and `config.js`.
+3. **Settings > Pages > Deploy from a branch > main > / (root) > Save**.
+4. Open `https://<your-username>.github.io/<repo-name>/`, choose **Create account**, enter the sign-up code, and start adding expenses.
+
+## Using the Sheet
+
+- **Expenses** sheet: every entry (ID, Username, Date, Note, Category, Amount, Card, Bank).
+- **Summary** sheet: month-wise totals by category, bank and card. Type a username in the yellow cell (B1) and a year in B2.
+- Avoid editing the ID and Username columns by hand. You can edit other cells, and the site shows the change next time it loads.
+
+## Changing the script later
+
+After editing `Code.gs`, press **Deploy > Manage deployments > pencil icon > Version: New version > Deploy**.
+The Web app URL stays the same.
+
+## Security notes
+
+- Passwords are stored in the Users sheet as salted hashes, never as plain text.
+- Sign-in uses a signed token that lasts 30 days. 5 wrong passwords lock that username for 10 minutes.
+- The Web app URL is public, but nothing can be read or written without signing in.
+- You (the Sheet owner) can see every user's expenses, because they are in your Sheet. Only share the sign-up code with people you trust.
+- Do not type real card numbers in the Note field. Card and Bank are just names such as "Credit Card" and "HDFC".
