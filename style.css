@@ -241,6 +241,12 @@ dialog::backdrop{background:rgba(10,30,28,.5)}
 
 /* ---------- settings ---------- */
 #settings-body .panel{max-width:860px}
+.panel.warn{border-left:4px solid var(--accent);background:#FFF8E6}
+.panel.warn h3{color:var(--danger)}
+.panel.warn p{margin:0 0 8px;font-size:.92rem}
+.panel.warn ol{margin:0 0 12px 20px;padding:0;font-size:.9rem}
+.panel.warn li{margin-bottom:4px}
+.panel.warn code{background:var(--line-soft);padding:1px 5px;border-radius:4px;font-size:.88em}
 .set-table{min-width:520px}
 .set-table select,.set-table input{min-height:36px;padding:6px 9px}
 .set-table input[type=number]{width:110px}

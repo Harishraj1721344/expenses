@@ -17,11 +17,12 @@ const SIGNUP_CODE = 'harish';
 const TOKEN_DAYS = 30;     // how long a sign-in stays valid
 const HASH_ROUNDS = 1000;  // password hashing rounds
 const MAX_BATCH = 500;     // most rows accepted in one import request
+const API_VERSION = 2;     // the website checks this to know the deployed script is up to date (2 = cards saved separately)
 
 /* ============================ entry points ============================ */
 
 function doGet() {
-  return json_({ ok: true, message: 'Expense Book API is running.' });
+  return json_({ ok: true, message: 'Expense Book API is running.', v: API_VERSION });
 }
 
 function doPost(e) {
@@ -191,7 +192,7 @@ function load_(u) {
     });
     any = true;
   }
-  return { ok: true, name: u.name, entries: entries, lists: any ? lists : null, cards: cards };
+  return { ok: true, v: API_VERSION, name: u.name, entries: entries, lists: any ? lists : null, cards: cards };
 }
 
 function add_(u, list) {
@@ -276,7 +277,7 @@ function saveLists_(u, lists, cards) {
   const all = keep.concat(out);
   if (last >= 2) sh.getRange(2, 1, last - 1, 3).clearContent();
   if (all.length) sh.getRange(2, 1, all.length, 3).setValues(all);
-  return { ok: true };
+  return { ok: true, v: API_VERSION };
 }
 
 function clean_(e) {

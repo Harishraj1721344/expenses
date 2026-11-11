@@ -65,6 +65,7 @@ function toast(msg) {
 
 /* ---------- Google Sheet connection ---------- */
 const CFG = window.EXPENSE_CONFIG || {};
+const NEEDS_API = 2;       // the Google Apps Script (Code.gs) must report at least this version, or cards cannot be saved
 const TOKEN_KEY = 'eb:token';
 const DEFAULT_LISTS = {
   categories: ['Food', 'Snacks', 'Petrol', 'Groceries', 'Bills', 'Shopping', 'Travel', 'Medical', 'Other'],
@@ -82,6 +83,7 @@ let token = null;          // sign-in token issued by the Google Sheet script
 let accountName = '';
 let loaded = false;        // true once expenses have been read from the sheet
 let loadError = '';
+let backendOutdated = false;   // true when the deployed Google Apps Script is older than this page needs
 let busy = false;
 let state = { entries: [], lists: clone(DEFAULT_LISTS), cards: clone(DEFAULT_CARDS) };
 let viewMonth = todayStr().slice(0, 7);
@@ -172,6 +174,7 @@ async function loadFromSheet() {
     state.entries = d.entries || [];
     if (d.lists) state.lists = Object.assign(clone(DEFAULT_LISTS), d.lists);
     state.cards = (d.cards && d.cards.length) ? d.cards : (d.lists ? [] : clone(DEFAULT_CARDS));
+    backendOutdated = !(d.v >= NEEDS_API);
     accountName = d.name || accountName;
     $('#who').textContent = accountName;
     loaded = true;
@@ -665,7 +668,12 @@ function persistSettings() {
   const payload = { lists: clone(state.lists), cards: clone(state.cards) };
   saveChain = saveChain
     .then(() => api('saveLists', payload))
-    .then(() => toast('Saved to Google Sheet.'))
+    .then(res => {
+      if (res && res.v >= NEEDS_API) return toast('Saved to Google Sheet.');
+      // An older script ignores the cards but still answers "ok", so say so instead of claiming it was saved.
+      backendOutdated = true; renderSettings();
+      toast('Cards were NOT saved: your Google Apps Script is out of date. See Settings.');
+    })
     .catch(err => { toast(err.message); loadFromSheet(); });   // reload so the screen matches the sheet
   return saveChain;
 }
@@ -691,7 +699,18 @@ function renderSettings() {
       <td><input type="number" min="1" max="31" step="1" data-card="${i}" data-f="day" value="${c.day || ''}" placeholder="Not set" aria-label="Bill date for ${esc(c.name)}"></td>
       <td><button type="button" class="link-btn danger" data-del-card="${i}">Remove</button></td>
     </tr>`).join('');
-  body.innerHTML = `
+  const outdatedPanel = backendOutdated ? `
+    <section class="panel warn" role="alert">
+      <h3>Your Google Apps Script is out of date</h3>
+      <p>Cards cannot be saved until it is updated: they show here, then disappear when you reload. Your expenses are not affected.</p>
+      <ol>
+        <li>Open your Google Sheet, then <strong>Extensions &gt; Apps Script</strong>.</li>
+        <li>Paste the latest <code>Code.gs</code> over the old one (keep your own <code>SIGNUP_CODE</code>) and press Save.</li>
+        <li>Press <strong>Deploy &gt; Manage deployments &gt; pencil &gt; Version: New version &gt; Deploy</strong>.</li>
+      </ol>
+      <button type="button" class="btn small" data-act="retry">Check again</button>
+    </section>` : '';
+  body.innerHTML = outdatedPanel + `
     <section class="panel">
       <h3>Cards</h3>
       <p class="hint">These are the only cards shown when you add an expense. Choosing a card fills in its bank. For a credit card, type the day of the month its bill is generated (for example 13) to see bill-wise spending. Leave it empty for cash, UPI or debit.</p>
