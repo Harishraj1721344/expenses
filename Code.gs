@@ -12,7 +12,7 @@
  */
 
 // Anyone who wants to create an account must type this code. Change it, and keep it private.
-const SIGNUP_CODE = 'change-me';
+const SIGNUP_CODE = 'harish';
 
 const TOKEN_DAYS = 30;     // how long a sign-in stays valid
 const HASH_ROUNDS = 1000;  // password hashing rounds
