@@ -258,3 +258,108 @@ dialog::backdrop{background:rgba(10,30,28,.5)}
 select:disabled{background:var(--line-soft);color:var(--ink);opacity:1;cursor:not-allowed}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .add-row{display:flex;gap:8px}
+
+/* ---------- phones and small tablets ----------
+   Kept in one block at the end so it overrides the rules above and the desktop layout is untouched. */
+.main-col,.side-col{min-width:0}            /* let wide tables scroll inside their box instead of stretching the page */
+@media (max-width:1000px){
+  .cols{grid-template-columns:minmax(0,1fr)} /* plain 1fr grows to fit the table's width and pushes the page sideways */
+}
+@media (max-width:720px){
+  .auth{min-height:100dvh}
+
+  /* top: logo, user name and sign out; the five tabs move to a bottom bar within thumb reach */
+  .topbar{position:static;padding:10px 14px;gap:8px 10px}
+  .brand{order:1;flex:1 1 auto;min-width:0}
+  .tools{display:contents}
+  #btn-logout{order:2}
+  .topbar::after{content:'';order:3;flex:0 0 100%;height:0}   /* line break: logo and Sign out above, user name and CSV buttons below */
+  .who{order:4;max-width:38vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0}
+  #btn-export,.tools label.btn{order:5;flex:1 1 0;white-space:nowrap}
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 12px rgba(0,0,0,.07)}
+  .tabs button{padding:9px 2px;font-size:.74rem;line-height:1.15;text-align:center;min-height:46px;border-radius:10px}
+  .page{padding:16px 14px calc(96px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+
+  /* 16px fields stop iPhones zooming the page when a field is tapped; bigger tap targets */
+  input[type=text],input[type=password],input[type=number],input[type=date],input[type=search],select{font-size:16px;min-height:44px}
+  .set-table select,.set-table input{min-height:44px;font-size:16px}
+  .icon-btn{width:44px;height:44px}
+  .btn.small{min-height:40px}
+  .link-btn{padding:8px 12px}
+  .chip button{width:32px;height:32px}
+
+  /* month / year bar: arrows with the title on the first line, buttons sharing the second */
+  .monthbar{gap:8px}
+  .monthbar h2{flex:1 1 140px;min-width:0;font-size:1.3rem}
+  .monthbar>.btn{flex:1 1 40%}
+  .push{margin-left:0}
+  #cb-select{width:100%;min-width:0;flex:1 1 100%}
+
+  /* expense list: each row becomes a card (note and amount on top, details below, Edit/Delete under them) */
+  .main-col>.table-wrap{background:none;border:0;overflow:visible}
+  #tbl,#tbl tbody,#tbl tfoot{display:block;min-width:0}
+  #tbl thead{display:none}
+  #tbl tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px}
+  #tbl td{padding:0;border:0;white-space:normal}
+  #tbl td.empty{flex:1 1 100%;padding:18px 6px}
+  #tbody tr[data-id] td:nth-child(2){order:1;flex:1 1 0;min-width:0;font-weight:600}
+  #tbody tr[data-id] td:nth-child(6){order:2;font-weight:800;font-size:1.02rem}
+  #tbody tr[data-id]::after{content:'';order:3;flex:0 0 100%;height:0}
+  #tbody tr[data-id] td:nth-child(1){order:4}
+  #tbody tr[data-id] td:nth-child(3){order:5}
+  #tbody tr[data-id] td:nth-child(4){order:6}
+  #tbody tr[data-id] td:nth-child(5){order:7}
+  #tbody tr[data-id] td:nth-child(1),#tbody tr[data-id] td:nth-child(4),#tbody tr[data-id] td:nth-child(5){font-size:.84rem;color:var(--muted)}
+  #tbody tr[data-id] td:nth-child(4):has(.muted),#tbody tr[data-id] td:nth-child(5):has(.muted){display:none}
+  #tbody tr[data-id] td:nth-child(7){order:8;flex:0 0 100%;margin-top:4px}
+  #tbody .row-actions{justify-content:flex-start;gap:8px}
+  #tbody .row-actions .link-btn{border:1px solid var(--line);background:#F7FAF9}
+  #tfoot tr{justify-content:space-between;background:#F7FAF9;font-weight:800}
+  #tfoot td:empty{display:none}
+
+  /* bill cycles on the Card bills screen: same card-style rows */
+  .cycle .table-wrap{overflow:visible}
+  .cycle table,.cycle tbody,.cycle tfoot{display:block;min-width:0}
+  .cycle thead{display:none}
+  .cycle tr{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .cycle td{padding:0;border:0;white-space:normal}
+  .cycle tbody td:nth-child(2){order:1;flex:1 1 0;min-width:0;font-weight:600}
+  .cycle tbody td:nth-child(4){order:2;font-weight:800}
+  .cycle tbody tr::after{content:'';order:3;flex:0 0 100%;height:0}
+  .cycle tbody td:nth-child(1){order:4;font-size:.84rem;color:var(--muted)}
+  .cycle tbody td:nth-child(3){order:5}
+  .cycle tfoot tr{justify-content:space-between;background:#F7FAF9;font-weight:800}
+
+  /* Settings: the cards table becomes one stacked block per card, with the Remove button always in view */
+  .set-table,.set-table tbody{display:block;min-width:0}
+  .set-table thead{display:none}
+  .set-table tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;align-items:end;padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+  .set-table td{padding:0;border:0}
+  .set-table td:nth-child(1){grid-column:1;grid-row:1;align-self:center}
+  .set-table td:nth-child(4){grid-column:2;grid-row:1;justify-self:end;align-self:center}
+  .set-table td:nth-child(2){grid-column:1;grid-row:2}
+  .set-table td:nth-child(3){grid-column:2;grid-row:2}
+  .set-table td.empty{grid-column:1/-1;grid-row:auto}
+  .set-table td[data-label]::before{content:attr(data-label);display:block;font-size:.78rem;font-weight:700;color:var(--muted);margin-bottom:3px}
+  .set-table input[type=number]{width:100%}
+  .add-row.card-form input[type=text],.add-row.card-form select,.add-row.card-form input[type=number],.add-row.card-form .btn{flex:1 1 100%;width:100%;min-width:0}
+
+  /* expense form: date on its own line, then note, then the pairs; yearly chart labels get a little more room */
+  .entry-form>label:first-child{grid-column:1/-1}
+  #bars{gap:2px}
+  #bars .bar{font-size:.66rem;letter-spacing:-.02em}
+
+  /* summary tiles: the main figure gets a full-width row so big amounts (for example 1,23,456.00) never overflow */
+  .strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .strip>div{padding:14px 16px;min-width:0;overflow-wrap:anywhere}
+  .strip>div:first-child,.strip>div:last-child{grid-column:1/-1}
+  .strip>div:nth-child(2){border-top:1px solid var(--line-soft)}
+  .strip>div:nth-child(3){border-left:1px solid var(--line-soft)}
+  .strip>div:nth-child(4){border-left:0}
+}
+@media (max-width:360px){
+  .tabs{padding-left:2px;padding-right:2px;gap:0}
+  .tabs button{font-size:.68rem;padding-left:0;padding-right:0}
+}

@@ -695,8 +695,8 @@ function renderSettings() {
   const rows = state.cards.map((c, i) => `
     <tr>
       <td><strong>${esc(c.name)}</strong></td>
-      <td><select data-card="${i}" data-f="bank" aria-label="Bank for ${esc(c.name)}">${bankOptions(c.bank)}</select></td>
-      <td><input type="number" min="1" max="31" step="1" data-card="${i}" data-f="day" value="${c.day || ''}" placeholder="Not set" aria-label="Bill date for ${esc(c.name)}"></td>
+      <td data-label="Bank"><select data-card="${i}" data-f="bank" aria-label="Bank for ${esc(c.name)}">${bankOptions(c.bank)}</select></td>
+      <td data-label="Bill date"><input type="number" min="1" max="31" step="1" data-card="${i}" data-f="day" value="${c.day || ''}" placeholder="Not set" aria-label="Bill date for ${esc(c.name)}"></td>
       <td><button type="button" class="link-btn danger" data-del-card="${i}">Remove</button></td>
     </tr>`).join('');
   const outdatedPanel = backendOutdated ? `
