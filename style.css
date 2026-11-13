@@ -222,7 +222,12 @@ dialog::backdrop{background:rgba(10,30,28,.5)}
 .bar.sel .bar-lab{color:var(--brand-dark);font-weight:800}
 
 /* ---------- card bills ---------- */
-#cb-select{width:auto;min-width:260px;max-width:100%}
+#cb-select,#d-card{width:auto;min-width:260px;max-width:100%}
+.icon-btn:disabled{opacity:.4;cursor:default}
+.icon-btn:disabled:hover{background:var(--surface);border-color:var(--line)}
+.dmode{max-width:360px}
+.bill-meta{margin:0 0 14px;color:var(--muted);font-size:.92rem;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.bill-entries .table-wrap{border:0;border-radius:0}
 .cycle{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:12px;overflow:hidden}
 .cycle summary{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;flex-wrap:wrap;list-style:none}
 .cycle summary::-webkit-details-marker{display:none}
@@ -295,7 +300,7 @@ select:disabled{background:var(--line-soft);color:var(--ink);opacity:1;cursor:no
   .monthbar h2{flex:1 1 140px;min-width:0;font-size:1.3rem}
   .monthbar>.btn{flex:1 1 40%}
   .push{margin-left:0}
-  #cb-select{width:100%;min-width:0;flex:1 1 100%}
+  #cb-select,#d-card{width:100%;min-width:0;flex:1 1 100%}
 
   /* expense list: each row becomes a card (note and amount on top, details below, Edit/Delete under them) */
   .main-col>.table-wrap{background:none;border:0;overflow:visible}
@@ -320,17 +325,17 @@ select:disabled{background:var(--line-soft);color:var(--ink);opacity:1;cursor:no
   #tfoot td:empty{display:none}
 
   /* bill cycles on the Card bills screen: same card-style rows */
-  .cycle .table-wrap{overflow:visible}
-  .cycle table,.cycle tbody,.cycle tfoot{display:block;min-width:0}
-  .cycle thead{display:none}
-  .cycle tr{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;padding:10px 14px;border-top:1px solid var(--line-soft)}
-  .cycle td{padding:0;border:0;white-space:normal}
-  .cycle tbody td:nth-child(2){order:1;flex:1 1 0;min-width:0;font-weight:600}
-  .cycle tbody td:nth-child(4){order:2;font-weight:800}
-  .cycle tbody tr::after{content:'';order:3;flex:0 0 100%;height:0}
-  .cycle tbody td:nth-child(1){order:4;font-size:.84rem;color:var(--muted)}
-  .cycle tbody td:nth-child(3){order:5}
-  .cycle tfoot tr{justify-content:space-between;background:#F7FAF9;font-weight:800}
+  .bill-entries .table-wrap{overflow:visible}
+  .bill-entries table,.bill-entries tbody,.bill-entries tfoot{display:block;min-width:0}
+  .bill-entries thead{display:none}
+  .bill-entries tr{display:flex;flex-wrap:wrap;align-items:center;gap:2px 10px;padding:10px 14px;border-top:1px solid var(--line-soft)}
+  .bill-entries td{padding:0;border:0;white-space:normal}
+  .bill-entries tbody td:nth-child(2){order:1;flex:1 1 0;min-width:0;font-weight:600}
+  .bill-entries tbody td:nth-child(4){order:2;font-weight:800}
+  .bill-entries tbody tr::after{content:'';order:3;flex:0 0 100%;height:0}
+  .bill-entries tbody td:nth-child(1){order:4;font-size:.84rem;color:var(--muted)}
+  .bill-entries tbody td:nth-child(3){order:5}
+  .bill-entries tfoot tr{justify-content:space-between;background:#F7FAF9;font-weight:800}
 
   /* Settings: the cards table becomes one stacked block per card, with the Remove button always in view */
   .set-table,.set-table tbody{display:block;min-width:0}

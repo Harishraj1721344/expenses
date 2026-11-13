@@ -36,10 +36,8 @@ Files
   Add, remove or change them in Settings. Each card has a bank, and **choosing a card on an expense fills in its bank automatically**.
   Leave the card empty for cash or UPI expenses and pick a bank yourself, if you want.
 - **Bill date:** for each credit card, type the day of the month its bill is generated (for example 13 for HDFC Freedom). Leave it empty for non-credit cards.
-- **Card bills** tab: for each card with a bill date you see what you have spent since the last bill, the next bill date and days left,
-  the last bill total, and every bill with its entries listed date-wise.
-- **Dashboard** (opens first): spending this month, comparison with last month, average per day, month-end estimate,
-  your credit card bills, spending by day, category chart, last six months, latest entries, and breakdowns by bank and card.
+- **Card bills** tab: everything is calculated bill by bill for one card at a time. Use the arrows to move between bills. For each bill you see what you spent, the comparison with the bill before, the biggest category, average per day, a bill-end estimate (while it is open), spending by day, a category chart, the last six bills, a few numbers (biggest expense, busiest day), and every entry. Below that are a bill-by-bill table (one row per bill, one column per category, with totals and the average per billed bill) and a summary of all your cards (open bill, last bill, average bill, highest bill).
+- **Dashboard** (opens first): switch between **By month** (spending this month, comparison with last month, average per day, month-end estimate, spending by day, category chart, last six months, latest entries, breakdowns by bank and card) and **By card bill** (the same bill-wise view as the Card bills tab). Your choice is remembered on this device.
 - **How entries are grouped:** with a bill date of 13, the bill of 13 Nov covers 14 Oct to 13 Nov. An expense on the 13th goes
   into that bill. A bill date of 31 uses the last day of shorter months.
 - Banks' own statement cut-off can differ by a day. Compare with your first real statement and, if needed, set the date one day earlier or later.

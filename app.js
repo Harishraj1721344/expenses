@@ -46,11 +46,16 @@ function cycleFor(dateStr, day) {
 const billCards = () => state.cards.filter(c => c.day);
 const cardEntries = b => state.entries.filter(e => e.card === b.name);
 const cycleTotal = (b, c) => sum(cardEntries(b).filter(e => e.date >= c.start && e.date <= c.end));
+/* Every bill of a card from its first spending up to the current one, newest first. Bills with no spending are
+   included, so averages and the bill-by-bill table are not skewed by skipped bills. */
 function cyclesFor(b) {
   const map = new Map();
-  const touch = dt => { const c = cycleFor(dt, b.day); if (!map.has(c.end)) map.set(c.end, { start: c.start, end: c.end, entries: [], total: 0 }); return map.get(c.end); };
-  touch(todayStr());
-  cardEntries(b).forEach(e => { const c = touch(e.date); c.entries.push(e); c.total = round2(c.total + e.amount); });
+  const touch = c => { if (!map.has(c.end)) map.set(c.end, { start: c.start, end: c.end, entries: [], total: 0 }); return map.get(c.end); };
+  cardEntries(b).forEach(e => { const c = touch(cycleFor(e.date, b.day)); c.entries.push(e); c.total = round2(c.total + e.amount); });
+  touch(cycleFor(todayStr(), b.day));
+  const ends = [...map.keys()].sort();
+  let c = map.get(ends[0]);
+  for (let i = 0; i < 1200 && c.end < ends[ends.length - 1]; i++) c = touch(cycleFor(addDays(c.end, 1), b.day));   // fill the gaps
   return [...map.values()].sort((a, b2) => b2.end.localeCompare(a.end));
 }
 const leftText = n => n <= 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`;
@@ -91,7 +96,11 @@ let reportYear = new Date().getFullYear();
 let editingId = null;
 let authMode = 'login';
 let cardSel = 0;           // which credit card is shown on the Card bills tab
-let cbShown = 12;          // how many bill cycles are listed
+let cbShown = 12;          // how many bills the bill-by-bill table lists
+let dashMode = 'month';    // Dashboard grouping: 'month' or 'bill' (remembered on this device)
+try { if (localStorage.getItem('eb:dash') === 'bill') dashMode = 'bill'; } catch (e) { /* storage blocked */ }
+let cycleEnd = null;      // the bill shown on the Card bills tab, by its end date (null = the current bill)
+let cbPrevEnd = null, cbNextEnd = null;   // end dates of the older / newer bill, for the arrows
 
 async function api(action, payload) {
   if (!CFG.API_URL) throw new Error('Not connected to Google Sheets yet. Add your Web app URL to config.js.');
@@ -496,8 +505,8 @@ function billCardsHTML() {
   }).join('')}</div></section>`;
 }
 
-function donutHTML(rows, total) {
-  if (!total) return '<p class="hint">No spending this month yet.</p>';
+function donutHTML(rows, total, empty = 'No spending this month yet.') {
+  if (!total) return `<p class="hint">${esc(empty)}</p>`;
   let acc = 0;
   const segs = rows.map((r, i) => {
     const pct = r.total / total * 100;
@@ -517,6 +526,11 @@ function renderDashboard() {
   const ym = viewMonth;
   $('#d-label').textContent = monthLabel(ym);
   const body = $('#dash-body');
+  const bill = dashMode === 'bill';
+  $('#d-m-month').setAttribute('aria-selected', String(!bill)); $('#d-m-bill').setAttribute('aria-selected', String(bill));
+  $('#d-card').hidden = true;
+  if (bill) { renderCards(dashUI()); return; }                 // the bill-wise dashboard, one card at a time
+  $('#d-prev').disabled = $('#d-next').disabled = false; $('#d-today').hidden = false; $('#d-today').textContent = 'This month';
   if (!loaded) { body.innerHTML = statusPanel(loadError || 'Loading your expenses from Google Sheet...', !!loadError); return; }
 
   const me = state.entries.filter(e => monthOf(e.date) === ym);
@@ -575,67 +589,206 @@ function renderDashboard() {
 }
 
 $('#dash-body').addEventListener('click', ev => {
+  const billBtn = ev.target.closest('button[data-end]');       // bill-wise mode: a bar or a date in the bill table
+  if (billBtn) { cycleEnd = billBtn.dataset.end; renderDashboard(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const cardBtn = ev.target.closest('button[data-card]');
+  if (cardBtn) { cardSel = Number(cardBtn.dataset.card); cbShown = 12; cycleEnd = null; renderDashboard(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const bar = ev.target.closest('.bar[data-ym]');
   if (bar) { viewMonth = bar.dataset.ym; renderDashboard(); return; }
   const b = ev.target.closest('button[data-act]'); if (!b) return;
   if (b.dataset.act === 'retry') loadFromSheet();
   else if (b.dataset.act === 'settings') switchView('settings');
-  else if (b.dataset.act === 'open-card') { cardSel = Number(b.dataset.i); cbShown = 12; switchView('cards'); }
+  else if (b.dataset.act === 'more') { cbShown += 12; renderDashboard(); }
+  else if (b.dataset.act === 'open-card') { cardSel = Number(b.dataset.i); cbShown = 12; cycleEnd = null; switchView('cards'); }
 });
-$('#d-prev').addEventListener('click', () => { viewMonth = shiftMonth(viewMonth, -1); renderDashboard(); });
-$('#d-next').addEventListener('click', () => { viewMonth = shiftMonth(viewMonth, 1); renderDashboard(); });
-$('#d-today').addEventListener('click', () => { viewMonth = todayStr().slice(0, 7); renderDashboard(); });
+$('#d-prev').addEventListener('click', () => { if (dashMode === 'bill') { if (cbPrevEnd) { cycleEnd = cbPrevEnd; renderDashboard(); } return; } viewMonth = shiftMonth(viewMonth, -1); renderDashboard(); });
+$('#d-next').addEventListener('click', () => { if (dashMode === 'bill') { if (cbNextEnd) { cycleEnd = cbNextEnd; renderDashboard(); } return; } viewMonth = shiftMonth(viewMonth, 1); renderDashboard(); });
+$('#d-today').addEventListener('click', () => { if (dashMode === 'bill') { cycleEnd = null; renderDashboard(); return; } viewMonth = todayStr().slice(0, 7); renderDashboard(); });
+$('#d-card').addEventListener('change', e => { cardSel = Number(e.target.value); cbShown = 12; cycleEnd = null; renderDashboard(); });
+const setDashMode = m => { dashMode = m; try { localStorage.setItem('eb:dash', m); } catch (e) { /* ignore */ } renderDashboard(); };
+$('#d-m-month').addEventListener('click', () => setDashMode('month'));
+$('#d-m-bill').addEventListener('click', () => setDashMode('bill'));
 $('#d-add').addEventListener('click', () => { switchView('entries'); $('#f-note').focus(); });
 
 /* =====================================================
-   CARD BILLS  (spending grouped by credit-card bill cycle)
+   CARD BILLS  (everything calculated bill by bill, not month by month)
+   One card at a time: pick a bill with the arrows, or tap a bar or a row. Cards with no bill date
+   (cash, UPI, debit) have no bills and still appear in the month-wise screens.
    ===================================================== */
-function renderCards() {
-  const body = $('#cb-body'), sel = $('#cb-select');
-  if (!loaded) { sel.hidden = true; body.innerHTML = statusPanel(loadError || 'Loading your expenses from Google Sheet...', !!loadError); return; }
+const billDays = c => daysBetween(c.start, c.end) + 1;
+const isCurrentBill = (c, t) => c.start <= t && c.end >= t;
+
+/* One row per bill and one column per category, newest bill first. */
+function billMatrixHTML(cycles) {
+  const t = todayStr(), shown = cycles.slice(0, cbShown);
+  const val = e => e.category || 'Other';
+  const used = new Set(shown.flatMap(c => c.entries.map(val)));
+  const cols = [...state.lists.categories.filter(x => used.has(x)), ...[...used].filter(x => !state.lists.categories.includes(x))];
+  if (!cols.length) return '<section class="panel"><h3>By category, bill-wise</h3><p class="hint">No spending on this card yet.</p></section>';
+
+  const colTotals = cols.map(() => 0), billedTotals = cols.map(() => 0);
+  let grand = 0, billedGrand = 0, billed = 0;
+  const rows = shown.map(c => {
+    const closed = c.end < t;
+    if (closed) billed++;
+    const cells = cols.map((col, i) => {
+      const v = sum(c.entries.filter(e => val(e) === col));
+      colTotals[i] = round2(colTotals[i] + v);
+      if (closed) billedTotals[i] = round2(billedTotals[i] + v);
+      return v;
+    });
+    grand = round2(grand + c.total);
+    if (closed) billedGrand = round2(billedGrand + c.total);
+    const tag = isCurrentBill(c, t) ? ' <span class="badge open">Open</span>' : c.start > t ? ' <span class="badge">Upcoming</span>' : '';
+    return `<tr><td><button type="button" class="link-btn" data-end="${esc(c.end)}" title="${esc(fmtDayShort(c.start))} to ${esc(fmtDayShort(c.end))}">${esc(fmtDay(c.end))}</button>${tag}</td>${cells.map(v => `<td class="num${v ? '' : ' zero'}">${v ? inr(v) : '-'}</td>`).join('')}<td class="num"><strong>${c.total ? inr(c.total) : '-'}</strong></td></tr>`;
+  }).join('');
+  const avg = billed
+    ? `<tr><td>Average per billed bill</td>${billedTotals.map(v => `<td class="num">${inr(round2(v / billed))}</td>`).join('')}<td class="num">${inr(round2(billedGrand / billed))}</td></tr>`
+    : '';
+  return `<section class="panel"><h3>By category, bill-wise</h3><p class="hint">Each row is one bill. Select a date to open that bill above.</p>
+    <div class="matrix-wrap"><table class="matrix">
+      <thead><tr><th>Bill of</th>${cols.map(c => `<th class="num">${esc(c)}</th>`).join('')}<th class="num">Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>Total of ${shown.length} bill${shown.length > 1 ? 's' : ''}</td>${colTotals.map(v => `<td class="num">${inr(v)}</td>`).join('')}<td class="num">${inr(grand)}</td></tr>${avg}</tfoot>
+    </table></div>
+    ${cycles.length > cbShown ? '<button type="button" class="btn ghost more" data-act="more">Show older bills</button>' : ''}</section>`;
+}
+
+/* One row per credit card: what is open now, the last bill, the usual bill and the highest bill. */
+function allCardsHTML() {
+  const t = todayStr();
+  const rows = billCards().map((b, i) => {
+    const cycles = cyclesFor(b);
+    const closed = cycles.filter(c => c.end < t), recent = closed.slice(0, 6);
+    return {
+      b, i, cur: cycles.find(c => isCurrentBill(c, t)), last: closed[0], n: recent.length,
+      avg: recent.length ? round2(recent.reduce((a, c) => a + c.total, 0) / recent.length) : null,
+      high: cycles.reduce((m, c) => c.total > m.total ? c : m, cycles[0])
+    };
+  });
+  const openTotal = round2(rows.reduce((a, r) => a + (r.cur ? r.cur.total : 0), 0));
+  const money = v => v == null ? '-' : v ? inr(v) : '-';
+  return `<section class="panel"><h3>All your cards, bill by bill</h3><p class="hint">Select a card to open its bills above.</p>
+    <div class="matrix-wrap"><table class="matrix">
+      <thead><tr><th>Card</th><th class="num">Bill date</th><th class="num">Open bill so far</th><th class="num">Last bill</th><th class="num">Average bill</th><th class="num">Highest bill</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td><button type="button" class="link-btn" data-card="${r.i}">${esc(r.b.name)}</button>${r.b.bank ? ` <span class="muted">${esc(r.b.bank)}</span>` : ''}</td>
+        <td class="num">${ordinal(r.b.day)}</td>
+        <td class="num">${money(r.cur && r.cur.total)}</td>
+        <td class="num" title="${r.last ? esc('Bill of ' + fmtDay(r.last.end)) : ''}">${money(r.last && r.last.total)}</td>
+        <td class="num" title="${r.n ? `Average of the last ${r.n} bill${r.n > 1 ? 's' : ''}` : 'No bill generated yet'}">${money(r.avg)}</td>
+        <td class="num" title="${r.high.total ? esc('Bill of ' + fmtDay(r.high.end)) : ''}">${money(r.high.total)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Open bills together</td><td></td><td class="num">${inr(openTotal)}</td><td></td><td></td><td></td></tr></tfoot>
+    </table></div></section>`;
+}
+
+const cardsUI = () => ({ body: $('#cb-body'), sel: $('#cb-select'), nav: $('#cb-nav'), label: $('#cb-label'), prev: $('#cb-prev'), next: $('#cb-next'), latest: $('#cb-latest') });
+const dashUI = () => ({ body: $('#dash-body'), sel: $('#d-card'), nav: null, label: $('#d-label'), prev: $('#d-prev'), next: $('#d-next'), latest: $('#d-today') });
+
+/* Draws the bill-wise view into the Card bills tab, or into the Dashboard when it is set to "By card bill". */
+function renderCards(ui = cardsUI()) {
+  const body = ui.body, sel = ui.sel, nav = ui.nav;
+  if (!loaded) { sel.hidden = true; if (nav) nav.hidden = true; body.innerHTML = statusPanel(loadError || 'Loading your expenses from Google Sheet...', !!loadError); return; }
   const cards = billCards();
   if (!cards.length) {
-    sel.hidden = true;
+    sel.hidden = true; if (nav) nav.hidden = true;
+    ui.label.textContent = 'Card bills'; ui.prev.disabled = ui.next.disabled = true;
     body.innerHTML = `<section class="panel"><h3>No credit card bill date yet</h3>
-      <p class="hint">In Settings, type the day of the month each credit card's bill is generated (for example 13). Expenses entered with that card are then grouped bill by bill.</p>
+      <p class="hint">In Settings, type the day of the month each credit card's bill is generated (for example 13). Expenses entered with that card are then calculated bill by bill.</p>
       <button type="button" class="btn primary small" data-act="settings">Open Settings</button></section>`;
     return;
   }
-  sel.hidden = false;
+  sel.hidden = false; if (nav) nav.hidden = false;
   if (cardSel >= cards.length) cardSel = 0;
   sel.innerHTML = cards.map((b, i) => `<option value="${i}">${esc(b.name)} (bill on the ${ordinal(b.day)})</option>`).join('');
   sel.value = String(cardSel);
 
   const b = cards[cardSel], t = todayStr();
-  const cycles = cyclesFor(b);
-  const cur = cycleFor(t, b.day);
-  const last = cycleFor(addDays(cur.start, -1), b.day);
-  const left = daysBetween(t, cur.end);
-  const strip = `<div class="strip">
-    <div><span class="strip-label">Spent so far on the next bill</span><strong class="strip-total">${inr(cycleTotal(b, cur))}</strong><span class="strip-note">${esc(fmtDay(cur.start))} to today</span></div>
-    <div><span class="strip-label">Bill generates</span><strong class="strip-val">${esc(fmtDayShort(cur.end))}</strong><span class="strip-note">${left <= 0 ? 'today' : leftText(left)}</span></div>
-    <div><span class="strip-label">Last bill</span><strong class="strip-val">${inr(cycleTotal(b, last))}</strong><span class="strip-note">generated ${esc(fmtDay(last.end))}</span></div>
-    <div><span class="strip-label">Bill date</span><strong class="strip-val">${ordinal(b.day)}</strong><span class="strip-note">of every month</span></div></div>`;
+  const cycles = cyclesFor(b);                                  // newest first, every bill from the first spending up to the current one
+  let idx = cycleEnd ? cycles.findIndex(x => x.end === cycleEnd) : -1;
+  if (idx < 0) idx = Math.max(0, cycles.findIndex(x => isCurrentBill(x, t)));
+  const c = cycles[idx], older = cycles[idx + 1], newer = cycles[idx - 1];
+  cbPrevEnd = older ? older.end : null; cbNextEnd = newer ? newer.end : null;
+  const current = isCurrentBill(c, t), upcoming = c.start > t;
 
-  const shown = cycles.slice(0, cbShown);
-  const list = shown.map((c, i) => {
-    const isOpen = c.end >= t;
-    const rows = [...c.entries].sort((x, y) => x.date.localeCompare(y.date) || x.id.localeCompare(y.id));
-    const table = rows.length
-      ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Note</th><th>Category</th><th class="num">Amount</th></tr></thead><tbody>${rows.map(e =>
-          `<tr><td>${esc(fmtDMY(e.date))}</td><td class="note">${esc(e.note) || '<span class="muted">No note</span>'}</td><td><span class="tag">${esc(e.category)}</span></td><td class="num">${inr(e.amount)}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><td colspan="3">Bill total</td><td class="num">${inr(c.total)}</td></tr></tfoot></table></div>`
-      : '<p class="empty">No spending in this bill yet.</p>';
-    return `<details class="cycle"${i === 0 ? ' open' : ''}><summary>
-      <span class="cy-title">Bill of ${esc(fmtDay(c.end))}</span>
-      <span class="cy-range">${esc(fmtDayShort(c.start))} to ${esc(fmtDayShort(c.end))}</span>
-      <span class="badge${isOpen ? ' open' : ''}">${isOpen ? 'Open' : 'Billed'}</span>
-      <strong class="cy-total">${inr(c.total)}</strong></summary>${table}</details>`;
-  }).join('');
-  body.innerHTML = strip + list + (cycles.length > cbShown ? '<button type="button" class="btn ghost more" data-act="more">Show older bills</button>' : '');
+  ui.label.textContent = `Bill of ${fmtDay(c.end)}`;
+  ui.prev.disabled = !older; ui.next.disabled = !newer;
+  ui.latest.hidden = current;
+
+  const days = billDays(c);
+  const elapsed = upcoming ? 0 : current ? daysBetween(c.start, t) + 1 : days;      // days of this bill that have passed
+  const per = Math.max(elapsed, 1);
+  const left = daysBetween(t, c.end);
+  const cats = groupBy(c.entries, e => e.category || 'Other');
+  const prevTotal = older ? older.total : 0;
+  let cmp;
+  if (!prevTotal) cmp = 'No spending in the bill before to compare with.';
+  else { const d = round2(c.total - prevTotal); cmp = d === 0 ? `Same as the bill of ${fmtDayShort(older.end)}.` : `${inr(Math.abs(d))} ${d > 0 ? 'more' : 'less'} than the bill of ${fmtDayShort(older.end)}.`; }
+
+  const meta = `<p class="bill-meta"><span class="badge${current ? ' open' : ''}">${current ? 'Open' : upcoming ? 'Upcoming' : 'Billed'}</span>
+    <span>${esc(fmtDay(c.start))} to ${esc(fmtDay(c.end))}, ${days} days${current ? `, bill generates ${leftText(left)}` : ''}</span></p>`;
+
+  const kpi4 = current
+    ? `<div><span class="strip-label">Bill-end estimate</span><strong class="strip-val">${inr(round2(c.total / per * days))}</strong><span class="strip-note">if you keep this pace</span></div>`
+    : `<div><span class="strip-label">Entries</span><strong class="strip-val">${c.entries.length}</strong><span class="strip-note">in this bill</span></div>`;
+  const strip = `<div class="strip">
+    <div><span class="strip-label">${current ? 'Spent so far in this bill' : 'Spent in this bill'}</span><strong class="strip-total">${inr(c.total)}</strong><span class="strip-note">${esc(cmp)}</span></div>
+    <div><span class="strip-label">Biggest category</span><strong class="strip-val">${cats[0] ? esc(cats[0].name) : 'None yet'}</strong><span class="strip-note">${cats[0] ? inr(cats[0].total) : ''}</span></div>
+    <div><span class="strip-label">Average per day</span><strong class="strip-val">${inr(round2(c.total / per))}</strong><span class="strip-note">${upcoming ? 'bill has not started' : `over ${elapsed} day${elapsed > 1 ? 's' : ''}`}</span></div>${kpi4}</div>`;
+
+  // spending by day, across the days of this bill
+  const byDay = Array(days).fill(0);
+  c.entries.forEach(e => { const i = daysBetween(c.start, e.date); if (byDay[i] != null) byDay[i] = round2(byDay[i] + e.amount); });
+  const maxD = Math.max(...byDay, 1);
+  const dayBars = `<div class="daybars">${byDay.map((v, i) => { const d = addDays(c.start, i); return `<div class="day" title="${esc(fmtDayShort(d))}: ${inr(v)}"><span class="day-fill" style="height:${Math.round(v / maxD * 125)}px"></span><span class="day-lab">${i === 0 || i % 5 === 0 ? parseYMD(d).d : ''}</span></div>`; }).join('')}</div>`;
+
+  // the six bills ending at this one
+  const six = cycles.slice(idx, idx + 6).reverse();
+  const maxS = Math.max(...six.map(x => x.total), 1);
+  const trend = `<div class="bars six">${six.map(x => `<button type="button" class="bar${x.end === c.end ? ' sel' : ''}" data-end="${esc(x.end)}" title="Bill of ${esc(fmtDay(x.end))}: ${inr(x.total)}" aria-label="Bill of ${esc(fmtDay(x.end))}: ${inr(x.total)}">
+    <span class="bar-val">${x.total ? inrShort(x.total) : ''}</span><span class="bar-fill" style="height:${Math.round(x.total / maxS * 150)}px"></span><span class="bar-lab">${esc(fmtDayShort(x.end))}</span></button>`).join('')}</div>`;
+
+  // this bill in numbers
+  const biggest = c.entries.reduce((m, e) => !m || e.amount > m.amount ? e : m, null);
+  const busiest = byDay.reduce((m, v, i) => v > m.v ? { v, i } : m, { v: 0, i: -1 });
+  const stat = (label, sub, value) => `<li><span class="r-note">${label}${sub ? `<span class="r-sub">${sub}</span>` : ''}</span><strong>${value}</strong></li>`;
+  const numbers = `<ul class="recent">
+    ${stat('Entries', '', c.entries.length)}
+    ${stat('Average per entry', '', c.entries.length ? inr(round2(c.total / c.entries.length)) : '-')}
+    ${stat('Biggest expense', biggest ? esc(`${biggest.note || biggest.category}, ${fmtDayShort(biggest.date)}`) : '', biggest ? inr(biggest.amount) : '-')}
+    ${stat('Busiest day', busiest.i >= 0 ? esc(fmtDay(addDays(c.start, busiest.i))) : '', busiest.i >= 0 ? inr(busiest.v) : '-')}
+    ${stat('Days in this bill', '', days)}</ul>`;
+
+  // every entry in this bill
+  const rows = [...c.entries].sort((x, y) => x.date.localeCompare(y.date) || x.id.localeCompare(y.id));
+  const table = rows.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Note</th><th>Category</th><th class="num">Amount</th></tr></thead><tbody>${rows.map(e =>
+        `<tr><td>${esc(fmtDMY(e.date))}</td><td class="note">${esc(e.note) || '<span class="muted">No note</span>'}</td><td><span class="tag">${esc(e.category)}</span></td><td class="num">${inr(e.amount)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="3">Bill total</td><td class="num">${inr(c.total)}</td></tr></tfoot></table></div>`
+    : '<p class="empty">No spending in this bill yet.</p>';
+
+  body.innerHTML = meta + strip + `
+    <div class="dash-grid">
+      <section class="panel"><h3>Spending by day</h3>${dayBars}</section>
+      <section class="panel"><h3>By category</h3>${donutHTML(cats, c.total, 'No spending in this bill yet.')}</section>
+    </div>
+    <div class="dash-grid">
+      <section class="panel"><h3>Last six bills</h3><p class="hint">Select a bill to look at it.</p>${trend}</section>
+      <section class="panel"><h3>This bill in numbers</h3>${numbers}</section>
+    </div>
+    <section class="panel bill-entries"><h3>Entries in this bill</h3>${table}</section>
+    ${billMatrixHTML(cycles)}
+    ${allCardsHTML()}`;
 }
-$('#cb-select').addEventListener('change', e => { cardSel = Number(e.target.value); cbShown = 12; renderCards(); });
+$('#cb-select').addEventListener('change', e => { cardSel = Number(e.target.value); cbShown = 12; cycleEnd = null; renderCards(); });
+$('#cb-prev').addEventListener('click', () => { if (cbPrevEnd) { cycleEnd = cbPrevEnd; renderCards(); } });
+$('#cb-next').addEventListener('click', () => { if (cbNextEnd) { cycleEnd = cbNextEnd; renderCards(); } });
+$('#cb-latest').addEventListener('click', () => { cycleEnd = null; renderCards(); });
 $('#cb-body').addEventListener('click', ev => {
+  const bill = ev.target.closest('button[data-end]');          // a bar in "Last six bills" or a date in the bill-wise table
+  if (bill) { cycleEnd = bill.dataset.end; renderCards(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const card = ev.target.closest('button[data-card]');         // a card in "All your cards"
+  if (card) { cardSel = Number(card.dataset.card); cbShown = 12; cycleEnd = null; renderCards(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const b = ev.target.closest('button[data-act]'); if (!b) return;
   if (b.dataset.act === 'retry') loadFromSheet();
   else if (b.dataset.act === 'settings') switchView('settings');

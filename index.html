@@ -76,10 +76,15 @@
 
   <!-- ---------- Dashboard ---------- -->
   <main id="view-dashboard" class="page">
+    <div class="seg dmode" role="tablist" aria-label="Group the dashboard by">
+      <button type="button" role="tab" id="d-m-month" aria-selected="true">By month</button>
+      <button type="button" role="tab" id="d-m-bill" aria-selected="false">By card bill</button>
+    </div>
     <div class="monthbar">
       <button type="button" class="icon-btn" id="d-prev" aria-label="Previous month">‹</button>
       <h2 id="d-label" aria-live="polite"></h2>
-      <button type="button" class="icon-btn" id="d-next" aria-label="Next month">›</button>
+      <button type="button" class="icon-btn" id="d-next" aria-label="Next month or newer bill">›</button>
+      <select id="d-card" aria-label="Choose card" hidden></select>
       <button type="button" class="btn ghost small" id="d-today">This month</button>
       <button type="button" class="btn primary small push" id="d-add">Add expense</button>
     </div>
@@ -97,6 +102,12 @@
     <div class="monthbar">
       <h2>Credit card bills</h2>
       <select id="cb-select" aria-label="Choose card"></select>
+    </div>
+    <div class="monthbar" id="cb-nav">
+      <button type="button" class="icon-btn" id="cb-prev" aria-label="Older bill">‹</button>
+      <h2 id="cb-label" aria-live="polite"></h2>
+      <button type="button" class="icon-btn" id="cb-next" aria-label="Newer bill">›</button>
+      <button type="button" class="btn ghost small" id="cb-latest">Latest bill</button>
     </div>
     <div id="cb-body"></div>
   </main>
