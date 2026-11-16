@@ -385,3 +385,8 @@ select:disabled{background:var(--line-soft);color:var(--ink);opacity:1;cursor:no
 .limit-row .rupee{font-weight:700;color:var(--muted)}
 .limit-row input[type=number]{width:160px;min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
 @media (max-width:720px){.limit-row input[type=number]{width:100%;min-height:44px;font-size:16px}.panel-head select{min-height:44px;font-size:16px}}
+
+.strip.tight{grid-template-columns:1fr 1fr;margin-bottom:0}
+.strip.tight>div.over-cell{background:#FDECEA}
+.strip-val.over{font-size:1.6rem}
+@media (max-width:720px){.strip.tight{grid-template-columns:1fr}.strip.tight>div{border-left:0;border-top:1px solid var(--line-soft)}.strip.tight>div:first-child{border-top:0}}

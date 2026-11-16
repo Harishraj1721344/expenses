@@ -588,6 +588,29 @@ function billCardsHTML() {
   }).join('')}</div></section>`;
 }
 
+/* All credit cards (cards with a bill date) added together: the open bills, and everything ever spent.
+   Each total turns red when it is above the limit from Settings. */
+function creditTotals() {
+  const cards = billCards(), t = todayStr();
+  return {
+    n: cards.length,
+    open: round2(cards.reduce((a, b) => a + cycleTotal(b, cycleFor(t, b.day)), 0)),
+    cum: round2(cards.reduce((a, b) => a + cardCumulative(b.name), 0))
+  };
+}
+function creditTotalsHTML() {
+  const c = creditTotals();
+  if (!c.n) return '';
+  const cell = (label, note, v) => {
+    const over = overLimit(v);
+    return `<div class="${over ? 'over-cell' : ''}"><span class="strip-label">${label}</span><strong class="strip-val${over ? ' over' : ''}">${inr(v)}</strong>
+      <span class="strip-note">${over ? `<span class="badge red">Over limit</span> ${inr(round2(v - limitValue()))} above ${inr(limitValue())}` : esc(note)}</span></div>`;
+  };
+  return `<section class="panel"><h3>All credit cards together (${c.n} card${c.n > 1 ? 's' : ''})</h3>
+    <p class="hint">${limitValue() ? `Each total turns red above ${inr(limitValue())}, the limit set in Settings.` : 'No limit is set in Settings.'}</p>
+    <div class="strip tight">${cell('Open bills together', 'Spent so far in the open bill of every credit card', c.open)}${cell('Cumulative, all time', 'Everything ever spent on these cards', c.cum)}</div></section>`;
+}
+
 /* Cumulative spending per card against the limit from Settings. Cards above the limit are red. */
 function cardLimitHTML() {
   const names = state.cards.map(c => c.name);
@@ -673,7 +696,7 @@ function renderDashboard() {
     ? `<ul class="recent">${recent.map(e => `<li><span class="r-note">${esc(e.note) || esc(e.category)}<span class="r-sub">${esc(fmtDMY(e.date))}, ${esc(e.category)}${e.card || e.bank ? ', ' + esc([e.bank, e.card].filter(Boolean).join(' ')) : ''}</span></span><strong>${inr(e.amount)}</strong></li>`).join('')}</ul>`
     : '<p class="hint">Nothing yet. Use Add expense to start.</p>';
 
-  body.innerHTML = strip + billCardsHTML() + cardLimitHTML() + `
+  body.innerHTML = strip + billCardsHTML() + creditTotalsHTML() + cardLimitHTML() + `
     <div class="dash-grid">
       <section class="panel"><h3>Spending by day</h3>${dayBars}</section>
       <section class="panel"><h3>By category</h3>${donutHTML(cats, total)}</section>
@@ -778,8 +801,8 @@ function allCardsHTML() {
         <td class="num" title="${r.last ? esc('Bill of ' + fmtDay(r.last.end)) : ''}">${money(r.last && r.last.total)}</td>
         <td class="num" title="${r.n ? `Average of the last ${r.n} bill${r.n > 1 ? 's' : ''}` : 'No bill generated yet'}">${money(r.avg)}</td>
         <td class="num" title="${r.high.total ? esc('Bill of ' + fmtDay(r.high.end)) : ''}">${money(r.high.total)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td>Open bills together</td><td></td><td class="num">${inr(openTotal)}</td><td></td><td></td><td></td></tr></tfoot>
-    </table></div></section>`;
+      <tfoot><tr><td>Open bills together</td><td></td><td class="num${overLimit(openTotal) ? ' over' : ''}">${inr(openTotal)}${overLimit(openTotal) ? ' <span class="badge red">Over limit</span>' : ''}</td><td></td><td></td><td></td></tr></tfoot>
+    </table></div></section>` + creditTotalsHTML();
 }
 
 const cardsUI = () => ({ body: $('#cb-body'), sel: $('#cb-select'), nav: $('#cb-nav'), label: $('#cb-label'), prev: $('#cb-prev'), next: $('#cb-next'), latest: $('#cb-latest') });
