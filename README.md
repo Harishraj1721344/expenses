@@ -38,6 +38,8 @@ Files
 - **Bill date:** for each credit card, type the day of the month its bill is generated (for example 13 for HDFC Freedom). Leave it empty for non-credit cards.
 - **Card bills** tab: everything is calculated bill by bill for one card at a time. Use the arrows to move between bills. For each bill you see what you spent, the comparison with the bill before, the biggest category, average per day, a bill-end estimate (while it is open), spending by day, a category chart, the last six bills, a few numbers (biggest expense, busiest day), and every entry. Below that are a bill-by-bill table (one row per bill, one column per category, with totals and the average per billed bill) and a summary of all your cards (open bill, last bill, average bill, highest bill).
 - **Dashboard** (opens first): switch between **By month** (spending this month, comparison with last month, average per day, month-end estimate, spending by day, category chart, last six months, latest entries, breakdowns by bank and card) and **By card bill** (the same bill-wise view as the Card bills tab). Your choice is remembered on this device.
+- **Yearly overview** (Reports tab): for the chosen year you see the total of all cards, the average per month and the highest month, then a **card-wise table** (year total, share, average per month, highest month, and the cumulative total of the card). Select a card name to see that card's months in the chart, or use the drop-down above the chart.
+- **Card spending limit** (Settings tab, top): type an amount, for example 10000. When the **cumulative total of a card** (everything ever spent on it) goes above that amount, the card is shown in **red** in the Reports card table, in the Dashboard's "Card totals, all time" panel and in Settings. The default is 10000. Type 0 to switch the warning off. The limit is saved in your Google Sheet.
 - **How entries are grouped:** with a bill date of 13, the bill of 13 Nov covers 14 Oct to 13 Nov. An expense on the 13th goes
   into that bill. A bill date of 31 uses the last day of shorter months.
 - Banks' own statement cut-off can differ by a day. Compare with your first real statement and, if needed, set the date one day earlier or later.
@@ -47,6 +49,7 @@ Files
 
 Paste the new `Code.gs` over the old one, press Save, then **Deploy > Manage deployments > pencil > Version: New version > Deploy**.
 You do not need to run `setup` again, and the Web app URL stays the same. Cards and bill dates saved by the earlier version are converted automatically. Then upload the new `index.html`, `style.css` and `app.js` to GitHub.
+The card spending limit needs the latest `Code.gs` (version 3) to be saved in the Sheet. With an older script the website still works, but keeps the limit on that device only and says so in Settings.
 
 ## Using the Sheet
 

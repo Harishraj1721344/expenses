@@ -17,7 +17,7 @@ const SIGNUP_CODE = 'harish';
 const TOKEN_DAYS = 30;     // how long a sign-in stays valid
 const HASH_ROUNDS = 1000;  // password hashing rounds
 const MAX_BATCH = 500;     // most rows accepted in one import request
-const API_VERSION = 2;     // the website checks this to know the deployed script is up to date (2 = cards saved separately)
+const API_VERSION = 3;     // the website checks this to know the deployed script is up to date (2 = cards saved separately, 3 = card limit saved)
 
 /* ============================ entry points ============================ */
 
@@ -48,7 +48,7 @@ function route_(r) {
     case 'bulkAdd':   return withLock_(() => add_(user, r.entries));
     case 'update':    return withLock_(() => update_(user, r.entry));
     case 'remove':    return withLock_(() => remove_(user, r.id));
-    case 'saveLists': return withLock_(() => saveLists_(user, r.lists, r.cards));
+    case 'saveLists': return withLock_(() => saveLists_(user, r.lists, r.cards, r.settings));
     default: throw fail_('Unknown request.');
   }
 }
@@ -167,6 +167,7 @@ function load_(u) {
   const lists = { categories: [], banks: [] };
   let cards = [];
   const legacyCards = [], legacyBilling = [];
+  let settings = null;                                // { limit } - null until the user saves one
   let any = false;
   if (ls.getLastRow() >= 2) {
     ls.getRange(2, 1, ls.getLastRow() - 1, 3).getValues().forEach(function (r) {
@@ -178,6 +179,10 @@ function load_(u) {
         cards.push({ name: p[0], bank: p[1] || '', day: day >= 1 && day <= 31 ? day : null });
         any = true;
       } else if (type === 'categories' || type === 'banks') { lists[type].push(val); any = true; }
+      else if (type === 'limit') {                                      // card spending limit in rupees (0 = off)
+        const n = parseFloat(val);
+        if (isFinite(n) && n >= 0) settings = { limit: n };
+      }
       else if (type === 'cards') legacyCards.push(val);                 // older versions
       else if (type === 'billing') {                                    // older versions: bank|card|day
         const p = val.split('|'), day = parseInt(p[2], 10);
@@ -192,7 +197,7 @@ function load_(u) {
     });
     any = true;
   }
-  return { ok: true, v: API_VERSION, name: u.name, entries: entries, lists: any ? lists : null, cards: cards };
+  return { ok: true, v: API_VERSION, name: u.name, entries: entries, lists: any ? lists : null, cards: cards, settings: settings };
 }
 
 function add_(u, list) {
@@ -239,9 +244,10 @@ function findEntryRow_(u, id) {
  * Saves a user's settings.
  *   lists = { categories: [...], banks: [...] }
  *   cards = [{ name, bank, day }]   day = day of month the bill is generated (1-31), or empty for non-credit cards
- * Leaving either argument undefined keeps what is already saved for that part.
+ *   settings = { limit }            a card whose cumulative spending is above this many rupees is shown in red (0 = off)
+ * Leaving an argument undefined keeps what is already saved for that part.
  */
-function saveLists_(u, lists, cards) {
+function saveLists_(u, lists, cards, settings) {
   const out = [];
   const clip = function (v, n) { return String(v == null ? '' : v).replace(/\|/g, '').trim().slice(0, n); };
   if (lists !== undefined) {
@@ -265,12 +271,18 @@ function saveLists_(u, lists, cards) {
     });
   }
 
+  if (settings !== undefined) {
+    const lim = Math.round(Number(settings && settings.limit));
+    if (isFinite(lim) && lim >= 0) out.push([u.key, 'limit', String(lim)]);
+  }
+
   const sh = sheet_('Lists');
   const last = sh.getLastRow();
   const old = last >= 2 ? sh.getRange(2, 1, last - 1, 3).getValues() : [];
   const keep = old.filter(function (r) {
     if (String(r[0]) !== u.key) return true;                                   // other users' rows
     const t = String(r[1]);
+    if (t === 'limit') return settings === undefined || !out.some(function (o) { return o[1] === 'limit'; });
     if (t === 'categories' || t === 'banks') return lists === undefined;
     return cards === undefined;                                                // card, and older cards/billing rows
   });

@@ -178,8 +178,12 @@
       <button type="button" class="icon-btn" id="y-next" aria-label="Next year">›</button>
       <button type="button" class="btn ghost small" id="y-today">This year</button>
     </div>
+    <div id="y-overview"></div>
     <section class="panel">
-      <h3>Total spent per month</h3>
+      <div class="panel-head">
+        <h3 id="bars-title">Total spent per month, all cards</h3>
+        <select id="y-card" aria-label="Show months for one card or all cards"></select>
+      </div>
       <p class="hint">Select a month to open it in Entries.</p>
       <div class="bars" id="bars"></div>
     </section>

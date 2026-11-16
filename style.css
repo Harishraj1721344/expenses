@@ -368,3 +368,20 @@ select:disabled{background:var(--line-soft);color:var(--ink);opacity:1;cursor:no
   .tabs{padding-left:2px;padding-right:2px;gap:0}
   .tabs button{font-size:.68rem;padding-left:0;padding-right:0}
 }
+
+/* ---------- card limit (red when a card's cumulative total is above the limit) ---------- */
+.over{color:var(--danger);font-weight:800}
+.matrix tr.over-row td{background:#FDECEA}
+.matrix tr.over-row td:first-child{background:#FDECEA}
+.matrix td.over{color:var(--danger);font-weight:800}
+.bl li.over .bl-row{color:var(--danger)}
+.bl-track i.over{background:var(--danger)}
+.bl li.over .bl-pct{color:var(--danger)}
+.badge.red{background:#FBE0DD;color:var(--danger)}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.panel-head h3{margin-bottom:0}
+.panel-head select{min-height:36px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-width:100%}
+.limit-row{align-items:center}
+.limit-row .rupee{font-weight:700;color:var(--muted)}
+.limit-row input[type=number]{width:160px;min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:8px}
+@media (max-width:720px){.limit-row input[type=number]{width:100%;min-height:44px;font-size:16px}.panel-head select{min-height:44px;font-size:16px}}

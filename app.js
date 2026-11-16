@@ -58,7 +58,13 @@ function cyclesFor(b) {
   for (let i = 0; i < 1200 && c.end < ends[ends.length - 1]; i++) c = touch(cycleFor(addDays(c.end, 1), b.day));   // fill the gaps
   return [...map.values()].sort((a, b2) => b2.end.localeCompare(a.end));
 }
-const leftText = n => n <= 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`;
+/* Cumulative spending of a card = everything ever entered on it. Above the limit from Settings it is shown in red.
+   A limit of 0 (or empty) switches the warning off. */
+const cardCumulative = name => sum(state.entries.filter(e => e.card === name));
+const limitValue = () => { const l = Number(state.settings.limit); return l > 0 ? l : 0; };
+const overLimit = v => limitValue() > 0 && v > limitValue();
+const limitText = () => limitValue() ? inr(limitValue()) : 'no limit';
+const leftText = n =>n <= 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`;
 const PALETTE = ['#0E5C57', '#E8A317', '#3B7EA1', '#B5503C', '#7A8F3A', '#6B5B95', '#C97B84', '#5E6F73', '#2F9E8F', '#A67C00'];
 
 let toastTimer;
@@ -84,13 +90,18 @@ const DEFAULT_CARDS = [
   { name: 'SBI Infinity', bank: 'SBI', day: null }
 ];
 
+const DEFAULT_LIMIT = 10000;   // a card whose cumulative spending is above this is shown in red (changeable in Settings)
+const freshState = () => ({ entries: [], lists: clone(DEFAULT_LISTS), cards: clone(DEFAULT_CARDS), settings: { limit: DEFAULT_LIMIT } });
+const limitKey = () => 'eb:limit:' + accountName;       // this device's copy of the limit, used when the Google script is too old to store it
+let limitSynced = true;    // false when the deployed Google Apps Script cannot store the limit (it is then kept on this device only)
+
 let token = null;          // sign-in token issued by the Google Sheet script
 let accountName = '';
 let loaded = false;        // true once expenses have been read from the sheet
 let loadError = '';
 let backendOutdated = false;   // true when the deployed Google Apps Script is older than this page needs
 let busy = false;
-let state = { entries: [], lists: clone(DEFAULT_LISTS), cards: clone(DEFAULT_CARDS) };
+let state = freshState();
 let viewMonth = todayStr().slice(0, 7);
 let reportYear = new Date().getFullYear();
 let editingId = null;
@@ -161,7 +172,7 @@ function setAuthMode(mode) {
 async function enterApp(tok, name, keep) {
   token = tok; accountName = name;
   saveToken(tok, name, keep);
-  state = { entries: [], lists: clone(DEFAULT_LISTS), cards: clone(DEFAULT_CARDS) };
+  state = freshState();
   loaded = false; loadError = '';
   $('#auth').hidden = true;
   $('#app').hidden = false;
@@ -185,6 +196,11 @@ async function loadFromSheet() {
     state.cards = (d.cards && d.cards.length) ? d.cards : (d.lists ? [] : clone(DEFAULT_CARDS));
     backendOutdated = !(d.v >= NEEDS_API);
     accountName = d.name || accountName;
+    limitSynced = d.v >= 3;
+    if (d.settings && d.settings.limit != null) state.settings.limit = d.settings.limit;
+    else {                                                       // nothing saved in the sheet: use this device's copy, if any
+      try { const v = localStorage.getItem(limitKey()); if (v != null && v !== '' && !isNaN(v)) state.settings.limit = Number(v); } catch (e) { /* storage blocked */ }
+    }
     $('#who').textContent = accountName;
     loaded = true;
     fillSelects();
@@ -198,7 +214,7 @@ async function loadFromSheet() {
 function logout(message) {
   clearToken();
   token = null; editingId = null; loaded = false;
-  state = { entries: [], lists: clone(DEFAULT_LISTS), cards: clone(DEFAULT_CARDS) };
+  state = freshState();
   $('#app').hidden = true;
   $('#auth').hidden = false;
   $('#a-pass').value = ''; $('#a-pass2').value = ''; $('#a-code').value = '';
@@ -448,12 +464,73 @@ function matrixTable(title, field, listItems, ents, year) {
   </table></div></section>`;
 }
 
+/* Yearly overview: one strip for the whole year, then one row per card (year total, share, monthly average,
+   highest month and the cumulative total, which turns red above the limit set in Settings). */
+const NO_CARD = '__none__';
+let reportCard = '';       // '' = all cards, NO_CARD = entries without a card, otherwise a card name
+function yearOverviewHTML(y, ents) {
+  if (!loaded) return statusPanel(loadError || 'Loading your expenses from Google Sheet...', !!loadError);
+  const now = new Date();
+  const monthsPassed = y < now.getFullYear() ? 12 : y === now.getFullYear() ? now.getMonth() + 1 : 1;
+  const monthTotals = []; for (let m = 1; m <= 12; m++) monthTotals.push(sum(ents.filter(e => monthOf(e.date) === `${y}-${pad(m)}`)));
+  const total = sum(ents), prev = sum(state.entries.filter(e => e.date.startsWith((y - 1) + '-')));
+  let cmp;
+  if (!prev) cmp = `No spending in ${y - 1} to compare with.`;
+  else { const d = round2(total - prev); cmp = d === 0 ? `Same as ${y - 1}.` : `${inr(Math.abs(d))} ${d > 0 ? 'more' : 'less'} than ${y - 1}.`; }
+  const hi = monthTotals.reduce((m, v, i) => v > m.v ? { v, i } : m, { v: 0, i: -1 });
+  const strip = `<div class="strip">
+    <div><span class="strip-label">Spent in ${y}, all cards</span><strong class="strip-total">${inr(total)}</strong><span class="strip-note">${esc(cmp)}</span></div>
+    <div><span class="strip-label">Average per month</span><strong class="strip-val">${inr(round2(total / monthsPassed))}</strong><span class="strip-note">over ${monthsPassed} month${monthsPassed > 1 ? 's' : ''}</span></div>
+    <div><span class="strip-label">Highest month</span><strong class="strip-val">${hi.i >= 0 ? monthShort(y, hi.i + 1) : 'None yet'}</strong><span class="strip-note">${hi.i >= 0 ? inr(hi.v) : ''}</span></div>
+    <div><span class="strip-label">Entries</span><strong class="strip-val">${ents.length}</strong><span class="strip-note">in ${y}</span></div></div>`;
+
+  const names = [...state.cards.map(c => c.name)];
+  state.entries.forEach(e => { if (e.card && !names.includes(e.card)) names.push(e.card); });
+  const rows = names.map(n => ({ n, ents: ents.filter(e => e.card === n), cum: cardCumulative(n) }));
+  const noCard = ents.filter(e => !e.card);
+  if (noCard.length) rows.push({ n: '', ents: noCard, cum: null });
+  const body = rows.map(r => {
+    const t = sum(r.ents);
+    const mt = []; for (let m = 1; m <= 12; m++) mt.push(sum(r.ents.filter(e => monthOf(e.date) === `${y}-${pad(m)}`)));
+    const h = mt.reduce((a, v, i) => v > a.v ? { v, i } : a, { v: 0, i: -1 });
+    const over = r.cum != null && overLimit(r.cum);
+    const pick = r.n || NO_CARD;
+    return `<tr${over ? ' class="over-row"' : ''}>
+      <td><button type="button" class="link-btn" data-pick-card="${esc(pick)}" title="Show this card's months above">${esc(r.n || 'No card (cash, UPI)')}</button></td>
+      <td class="num${t ? '' : ' zero'}">${t ? inr(t) : '-'}</td>
+      <td class="num${t ? '' : ' zero'}">${total ? Math.round(t / total * 100) + '%' : '-'}</td>
+      <td class="num${t ? '' : ' zero'}">${t ? inr(round2(t / monthsPassed)) : '-'}</td>
+      <td class="num${t ? '' : ' zero'}">${h.i >= 0 ? `${monthShort(y, h.i + 1)}, ${inr(h.v)}` : '-'}</td>
+      <td class="num${over ? ' over' : ''}">${r.cum == null ? '<span class="muted">-</span>' : inr(r.cum)}${over ? ' <span class="badge red">Over limit</span>' : ''}</td></tr>`;
+  }).join('');
+  const table = `<section class="panel"><h3>Card-wise, ${y}</h3>
+    <p class="hint">Cumulative is everything ever spent on the card. It turns red above the limit set in Settings (${esc(limitText())}).</p>
+    <div class="matrix-wrap"><table class="matrix">
+      <thead><tr><th>Card</th><th class="num">${y} total</th><th class="num">Share</th><th class="num">Average / month</th><th class="num">Highest month</th><th class="num">Cumulative, all time</th></tr></thead>
+      <tbody>${body || '<tr><td colspan="6" class="empty">No cards yet.</td></tr>'}</tbody>
+      <tfoot><tr><td>All cards</td><td class="num">${inr(total)}</td><td class="num">${total ? '100%' : '-'}</td><td class="num">${inr(round2(total / monthsPassed))}</td><td></td><td></td></tr></tfoot>
+    </table></div></section>`;
+  return strip + table;
+}
+
 function renderReports() {
   const y = reportYear;
   $('#y-label').textContent = y;
   const ents = state.entries.filter(e => e.date.startsWith(y + '-'));
+  $('#y-overview').innerHTML = yearOverviewHTML(y, ents);
+
+  const names = [...state.cards.map(c => c.name)];
+  state.entries.forEach(e => { if (e.card && !names.includes(e.card)) names.push(e.card); });
+  const sel = $('#y-card');
+  sel.innerHTML = '<option value="">All cards</option>' + names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + `<option value="${NO_CARD}">No card (cash, UPI)</option>`;
+  if (reportCard && ![...sel.options].some(o => o.value === reportCard)) reportCard = '';
+  sel.value = reportCard;
+  $('#bars-title').textContent = reportCard === '' ? 'Total spent per month, all cards'
+    : `Spent per month, ${reportCard === NO_CARD ? 'no card' : reportCard}`;
+  const barEnts = reportCard === '' ? ents : ents.filter(e => e.card === (reportCard === NO_CARD ? '' : reportCard));
+
   const totals = [];
-  for (let m = 1; m <= 12; m++) totals.push(sum(ents.filter(e => monthOf(e.date) === `${y}-${pad(m)}`)));
+  for (let m = 1; m <= 12; m++) totals.push(sum(barEnts.filter(e => monthOf(e.date) === `${y}-${pad(m)}`)));
   const max = Math.max(...totals, 1);
   const now = new Date();
   $('#bars').innerHTML = totals.map((t, i) => {
@@ -473,6 +550,12 @@ function renderReports() {
 $('#bars').addEventListener('click', ev => {
   const b = ev.target.closest('.bar'); if (!b) return;
   viewMonth = b.dataset.ym; switchView('entries');
+});
+$('#y-card').addEventListener('change', e => { reportCard = e.target.value; renderReports(); });
+$('#y-overview').addEventListener('click', ev => {
+  const pick = ev.target.closest('button[data-pick-card]');
+  if (pick) { reportCard = pick.dataset.pickCard; renderReports(); $('#bars').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (ev.target.closest('button[data-act="retry"]')) loadFromSheet();
 });
 $('#y-prev').addEventListener('click', () => { reportYear--; renderReports(); });
 $('#y-next').addEventListener('click', () => { reportYear++; renderReports(); });
@@ -503,6 +586,23 @@ function billCardsHTML() {
       <span class="bill-due">Bill generates ${esc(fmtDay(cyc.end))}, ${leftText(daysBetween(t, cyc.end))}</span>
       <span class="bill-note">Last bill (${esc(fmtDayShort(last.end))}): ${inr(cycleTotal(b, last))}</span></button>`;
   }).join('')}</div></section>`;
+}
+
+/* Cumulative spending per card against the limit from Settings. Cards above the limit are red. */
+function cardLimitHTML() {
+  const names = state.cards.map(c => c.name);
+  state.entries.forEach(e => { if (e.card && !names.includes(e.card)) names.push(e.card); });
+  const rows = names.map(n => ({ name: n, total: cardCumulative(n) })).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+  const lim = limitValue();
+  const hint = lim ? `Everything ever spent on each card. Red means above ${inr(lim)}, the limit set in Settings.` : 'Everything ever spent on each card. No limit is set in Settings.';
+  const list = rows.length
+    ? `<ul class="bl">${rows.map(r => {
+        const over = overLimit(r.total), pct = lim ? Math.min(100, Math.round(r.total / lim * 100)) : 0;
+        return `<li class="${over ? 'over' : ''}"><div class="bl-row"><span>${esc(r.name)}${over ? ' <span class="badge red">Over limit</span>' : ''}</span><span>${inr(r.total)}</span></div>
+          ${lim ? `<div class="bl-track"><i class="${over ? 'over' : ''}" style="width:${pct}%"></i></div><span class="bl-pct">${over ? `${inr(round2(r.total - lim))} above the limit` : `${inr(round2(lim - r.total))} left before the limit`}</span>` : ''}</li>`;
+      }).join('')}</ul>`
+    : '<p class="hint">No spending on any card yet.</p>';
+  return `<section class="panel"><h3>Card totals, all time</h3><p class="hint">${hint}</p>${list}</section>`;
 }
 
 function donutHTML(rows, total, empty = 'No spending this month yet.') {
@@ -573,7 +673,7 @@ function renderDashboard() {
     ? `<ul class="recent">${recent.map(e => `<li><span class="r-note">${esc(e.note) || esc(e.category)}<span class="r-sub">${esc(fmtDMY(e.date))}, ${esc(e.category)}${e.card || e.bank ? ', ' + esc([e.bank, e.card].filter(Boolean).join(' ')) : ''}</span></span><strong>${inr(e.amount)}</strong></li>`).join('')}</ul>`
     : '<p class="hint">Nothing yet. Use Add expense to start.</p>';
 
-  body.innerHTML = strip + billCardsHTML() + `
+  body.innerHTML = strip + billCardsHTML() + cardLimitHTML() + `
     <div class="dash-grid">
       <section class="panel"><h3>Spending by day</h3>${dayBars}</section>
       <section class="panel"><h3>By category</h3>${donutHTML(cats, total)}</section>
@@ -818,11 +918,12 @@ $$('.tabs button').forEach(b => b.addEventListener('click', () => switchView(b.d
    ===================================================== */
 let saveChain = Promise.resolve();
 function persistSettings() {
-  const payload = { lists: clone(state.lists), cards: clone(state.cards) };
+  const payload = { lists: clone(state.lists), cards: clone(state.cards), settings: clone(state.settings) };
   saveChain = saveChain
     .then(() => api('saveLists', payload))
     .then(res => {
-      if (res && res.v >= NEEDS_API) return toast('Saved to Google Sheet.');
+      if (res && res.v >= 3) { limitSynced = true; return toast('Saved to Google Sheet.'); }
+      if (res && res.v >= NEEDS_API) { limitSynced = false; return toast('Saved to Google Sheet.'); }
       // An older script ignores the cards but still answers "ok", so say so instead of claiming it was saved.
       backendOutdated = true; renderSettings();
       toast('Cards were NOT saved: your Google Apps Script is out of date. See Settings.');
@@ -863,7 +964,22 @@ function renderSettings() {
       </ol>
       <button type="button" class="btn small" data-act="retry">Check again</button>
     </section>` : '';
-  body.innerHTML = outdatedPanel + `
+  const overNow = state.cards.map(c => ({ n: c.name, t: cardCumulative(c.name) })).filter(r => overLimit(r.t));
+  const limitNote = limitSynced ? '' : '<p class="hint"><strong>Saved on this device only:</strong> your Google Apps Script is older than this page, so the limit is not saved in the Google Sheet yet. Paste the latest <code>Code.gs</code> and deploy a new version to keep it everywhere.</p>';
+  const limitPanel = `
+    <section class="panel">
+      <h3>Card spending limit</h3>
+      <p class="hint">When the cumulative total of a card (everything ever spent on it) goes above this amount, the card is shown in red on the Dashboard and in Reports. Type 0 to switch the warning off.</p>
+      <div class="add-row limit-row">
+        <label class="sr" for="limit-input">Limit per card in rupees</label>
+        <span class="rupee">₹</span>
+        <input type="number" id="limit-input" min="0" step="1" inputmode="numeric" value="${limitValue() || 0}" aria-label="Limit per card in rupees">
+      </div>
+      ${limitNote}
+      <p class="${overNow.length ? 'over' : 'hint'}" style="margin:10px 0 0">${!limitValue() ? 'The warning is off.' : overNow.length
+        ? `Over the limit now: ${overNow.map(r => `${esc(r.n)} (${inr(r.t)})`).join(', ')}.` : 'No card is over the limit right now.'}</p>
+    </section>`;
+  body.innerHTML = outdatedPanel + limitPanel + `
     <section class="panel">
       <h3>Cards</h3>
       <p class="hint">These are the only cards shown when you add an expense. Choosing a card fills in its bank. For a credit card, type the day of the month its bill is generated (for example 13) to see bill-wise spending. Leave it empty for cash, UPI or debit.</p>
@@ -898,6 +1014,13 @@ $('#settings-body').addEventListener('click', ev => {
 });
 $('#settings-body').addEventListener('change', ev => {
   const t = ev.target;
+  if (t.id === 'limit-input') {
+    const v = t.value.trim() === '' ? 0 : Number(t.value);
+    if (!(v >= 0) || !isFinite(v)) { toast('Enter the limit as an amount of 0 or more.'); renderSettings(); return; }
+    state.settings.limit = Math.round(v);
+    try { localStorage.setItem(limitKey(), String(state.settings.limit)); } catch (e) { /* storage blocked */ }
+    renderSettings(); persistSettings(); return;
+  }
   if (t.dataset.card == null) return;
   const c = state.cards[Number(t.dataset.card)]; if (!c) return;
   if (t.dataset.f === 'bank') c.bank = t.value;
