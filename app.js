@@ -598,6 +598,8 @@ function creditTotals() {
     cum: round2(cards.reduce((a, b) => a + cardCumulative(b.name), 0))
   };
 }
+/* The bill of every credit card that is generated in the given month, added together (the Nov bills, the Dec bills...). */
+const billsOfMonth = (y, m) => round2(billCards().reduce((a, b) => a + cycleTotal(b, cycleFor(billEnd(y, m, b.day), b.day)), 0));
 function creditTotalsHTML() {
   const c = creditTotals();
   if (!c.n) return '';
@@ -851,9 +853,10 @@ function renderCards(ui = cardsUI()) {
   const meta = `<p class="bill-meta"><span class="badge${current ? ' open' : ''}">${current ? 'Open' : upcoming ? 'Upcoming' : 'Billed'}</span>
     <span>${esc(fmtDay(c.start))} to ${esc(fmtDay(c.end))}, ${days} days${current ? `, bill generates ${leftText(left)}` : ''}</span></p>`;
 
-  const kpi4 = current
-    ? `<div><span class="strip-label">Bill-end estimate</span><strong class="strip-val">${inr(round2(c.total / per * days))}</strong><span class="strip-note">if you keep this pace</span></div>`
-    : `<div><span class="strip-label">Entries</span><strong class="strip-val">${c.entries.length}</strong><span class="strip-note">in this bill</span></div>`;
+  // 4th box: the bills of all credit cards for this bill's month added together (Nov bills, Dec bills, ...), red above the limit from Settings
+  const bm = parseYMD(c.end), ctTotal = billsOfMonth(bm.y, bm.m), ctOver = overLimit(ctTotal);
+  const kpi4 = `<div class="${ctOver ? 'over-cell' : ''}"><span class="strip-label">All credit cards, ${esc(monthShort(bm.y, bm.m))} ${bm.y} bills</span><strong class="strip-val${ctOver ? ' over' : ''}">${inr(ctTotal)}</strong>
+    <span class="strip-note">${ctOver ? `<span class="badge red">Over limit</span> ${inr(round2(ctTotal - limitValue()))} above ${inr(limitValue())}` : `${cards.length} card${cards.length > 1 ? 's' : ''} together${limitValue() ? `, limit ${inr(limitValue())}` : ''}`}</span></div>`;
   const strip = `<div class="strip">
     <div><span class="strip-label">${current ? 'Spent so far in this bill' : 'Spent in this bill'}</span><strong class="strip-total">${inr(c.total)}</strong><span class="strip-note">${esc(cmp)}</span></div>
     <div><span class="strip-label">Biggest category</span><strong class="strip-val">${cats[0] ? esc(cats[0].name) : 'None yet'}</strong><span class="strip-note">${cats[0] ? inr(cats[0].total) : ''}</span></div>
